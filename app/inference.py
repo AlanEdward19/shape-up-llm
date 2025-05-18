@@ -1,65 +1,66 @@
-import torch
+from openai import AzureOpenAI
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
-def generate_insight(text_input: str, tokenizer, model, type: str, max_new_tokens=1000):
-    prompt = f"""
-Você é um assistente especializado em nutrição clínica. Analise a anamnese abaixo e gere insights úteis e estruturados para o nutricionista. 
-Baseie suas respostas nas informações fornecidas pelo paciente e gere recomendações práticas, sempre voltadas à nutrição e saúde alimentar.
+client = AzureOpenAI(
+    azure_endpoint=os.getenv("AZURE_API_BASE"),
+    api_key=os.getenv("AZURE_API_KEY"),
+    api_version=os.getenv("AZURE_API_VERSION"),
+)
 
-Cada insight deve ser objetivo e apresentado em tópicos. Evite generalidades.
+def generate_insights(type: str, anamnese: str) -> str:
+    if type.lower() == "nutricionist":
+        role_instruction = (
+            """
+            Considere que você é um assistente técnico de apoio para nutricionistas experientes. Você receberá uma anamnese escrita em linguagem natural, contendo informações sobre estado nutricional, queixas alimentares, restrições, sintomas e histórico de saúde.
 
-Exemplo:
-- Paciente relatou intolerância à lactose → Sugerir evitar alimentos derivados do leite, como queijos e iogurtes comuns.
-- Relatou pouca ingestão de vegetais → Orientar aumento de vegetais nas principais refeições.
+            Sua função é gerar uma lista objetiva e tecnicamente redigida de 3 a 6 insights clínicos ou pontos de atenção nutricional relevantes, com base na interpretação da anamnese.
+            
+            A resposta deve ser exclusivamente focada em aspectos nutricionais. Não comente sobre exercícios físicos, reabilitação, fisioterapia ou áreas fora do escopo da nutrição.
+            
+            Não prescreva dietas, cardápios ou planos alimentares. Não dialogue com o nutricionista nem utilize frases genéricas como “consulte um profissional”. Não repita dados da anamnese nem explique o que ela diz — destaque apenas os possíveis significados e riscos nutricionais que merecem atenção.
+            
+            A resposta deve ser redigida em tópicos claros, técnicos e coesos, mantendo linguagem formal, acessível e precisa.
+            
+            Abaixo está a anamnese para ser analisada:
+            """
+        )
+    elif type.lower() == "trainer":
+        role_instruction = (
+            """
+            Considere que você é um assistente técnico de apoio para treinadores físicos experientes. Você receberá uma anamnese escrita em linguagem natural, contendo informações sobre histórico corporal, limitações físicas, dores, lesões, estilo de vida e outras queixas relacionadas.
 
-Anamnese:
-{text_input}
-
-Insights nutricionais:
-""" if type == "nutricionist" else f"""
-Você é um assistente para treinadores experientes que querem insights claros e práticos a partir da anamnese de um cliente.
-
-Leia a anamnese abaixo e gere somente uma lista curta (máximo 5 itens) com pontos de atenção diretamente relacionados ao treino.
-
-**REGRAS:**
-- Foco estrito nas condições do cliente que impactam a escolha dos exercícios.
-- Use apenas nomes reais de exercícios se for necessário alertar sobre eles.
-- Não faça recomendações genéricas, nem fale sobre dieta, avaliação médica ou planejamento geral.
-- Não repita frases ou ideias.
-- Evite linguagem vaga, confusa ou que pareça conversa.
-- Responda em português formal, claro e objetivo.
-- Não mencione nada sobre consultar outros profissionais, nem fale com o treinador (não use “você”, “deve”, etc).
-- Dê só os insights práticos, pontuais, úteis para quem vai montar o treino.
-
----
-
-Anamnese:
-{text_input}
-
----
-
-Exemplo de resposta para anamnese com hipertensão e intolerância à lactose (não presente aqui, só para modelo entender formato):
-
-1. Evitar exercícios que causem picos abruptos de pressão arterial, como levantamento de peso máximo.
-2. Priorizar exercícios aeróbicos de intensidade moderada.
-3. Monitorar frequência cardíaca durante o treino.
-4. Considerar exercícios de fortalecimento muscular que não sobrecarreguem as articulações.
-5. Evitar agachamento com carga alta devido a possíveis limitações articulares.
-
----
-
-Agora, gere os insights para o treino baseados na anamnese acima:
-"""
-
-
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-    output = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=True, temperature=0.7)
-    decoded = tokenizer.decode(output[0], skip_special_tokens=True)
-
-    if type == "nutricionist":
-        split_token = "Insights nutricionais:"
+            Sua função é gerar uma lista objetiva e tecnicamente redigida de 3 a 6 insights ou pontos de atenção física e funcional relevantes, com base na interpretação da anamnese.
+            
+            A resposta deve ser exclusivamente focada em aspectos relacionados à prática de atividade física, mobilidade, composição corporal e limitações físicas observáveis. Não comente sobre dieta, suplementação ou recomendações nutricionais.
+            
+            Não prescreva treinos ou exercícios. Não dialogue com o treinador nem utilize frases genéricas como “consulte um profissional”. Não repita dados da anamnese nem explique o que ela diz — destaque apenas os possíveis significados, riscos e pontos que merecem atenção no planejamento do treino.
+            
+            A resposta deve ser redigida em tópicos claros, técnicos e coesos, mantendo linguagem formal, acessível e precisa.
+            
+            Abaixo está a anamnese para ser analisada:
+            """
+        )
     else:
-        split_token = "Agora, gere os insights para o treino baseados na anamnese acima:"
-    if split_token in decoded:
-        return decoded.split(split_token, 1)[-1].strip()
-    return decoded.strip()
+        raise ValueError("Profissão inválida. Use 'nutricionist' ou 'trainer'.")
+
+    messages = [
+        {"role": "system", "content": role_instruction},
+        {"role": "user", "content": f"{anamnese}"}
+    ]
+
+    completion = client.chat.completions.create(
+        model=os.getenv("AZURE_DEPLOYMENT_NAME"),
+        messages=messages,
+        max_tokens=800,
+        temperature=0.7,
+        top_p=0.95,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stop=None,
+        stream=False
+    )
+
+    return completion.choices[0].message.content.strip()

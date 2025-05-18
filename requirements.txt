@@ -1,6 +1,2 @@
-﻿transformers>=4.38.0
-accelerate>=0.24.0
-torch>=2.1.0
-sentencepiece
+﻿openai>=1.0.0
 pandas
-scikit-learn
