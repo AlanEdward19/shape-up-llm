@@ -1,5 +1,6 @@
 ﻿openai>=1.0.0
-pandas
-mediapipe==0.10.9
+pandas~=2.2.3
+mediapipe== 0.10.21
 opencv-python==4.9.0.80
 numpy==1.26.4
+fastapi~=0.115.9

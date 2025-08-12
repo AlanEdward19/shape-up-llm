@@ -1,6 +1,10 @@
+import json
+
+import cv2
+
 from insights_model.inference import generate_insights
 from insights_model.utils import read_anamnese_csv
-from posture_model.posture_analyzer import analyze_image
+from posture_model.posture_analyzer import PostureAnalyzer
 
 if __name__ == "__main__":
     #print("Lendo anamnese de exemplo...")
@@ -17,16 +21,9 @@ if __name__ == "__main__":
     #print(insights_nutri)
     #print("----------------------------------")
 
-    images = {
-        "Costas": "files/Escoliose.jpg"
-    }
+    analyzer = PostureAnalyzer(static_image_mode=True)
+    img = cv2.imread("files/Direito.jpg")
 
-    all_insights = []
-
-    for name, path in images.items():
-        insights = analyze_image(name, path)
-        all_insights.extend(insights)
-
-    print("\n--- INSIGHTS POSTURAIS ---")
-    for insight in all_insights:
-        print(insight)
+    res = analyzer.analyze(img, "Right")
+    a = json.dumps(res, ensure_ascii=False, indent=2)
+    print(a)
